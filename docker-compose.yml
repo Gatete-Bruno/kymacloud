@@ -1,0 +1,317 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # NGINX - Reverse Proxy & Load Balancer
+  # ============================================
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+      - wordpress1_data:/var/www/site1:ro
+      - wordpress2_data:/var/www/site2:ro
+    networks:
+      - frontend
+    depends_on:
+      - wordpress1
+      - wordpress2
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================
+  # WordPress 1 - PHP 8.1
+  # ============================================
+  wordpress1:
+    image: wordpress:php8.1-fpm-alpine
+    container_name: wordpress1
+    restart: unless-stopped
+    environment:
+      WORDPRESS_DB_HOST: mysql:3306
+      WORDPRESS_DB_NAME: ${WP1_DB_NAME:-wordpress1}
+      WORDPRESS_DB_USER: ${WP1_DB_USER:-wp1user}
+      WORDPRESS_DB_PASSWORD: ${WP1_DB_PASSWORD}
+      WORDPRESS_TABLE_PREFIX: ${WP1_TABLE_PREFIX:-wp1_}
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_MEMORY_LIMIT', '256M');
+        define('WP_MAX_MEMORY_LIMIT', '512M');
+        define('DISABLE_WP_CRON', true);
+    volumes:
+      - wordpress1_data:/var/www/html
+      - ./php/php8.1.ini:/usr/local/etc/php/conf.d/custom.ini:ro
+    networks:
+      - frontend
+      - backend_wp1
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "php-fpm-healthcheck || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # ============================================
+  # WordPress 2 - PHP 8.4
+  # ============================================
+  wordpress2:
+    image: wordpress:php8.4-fpm-alpine
+    container_name: wordpress2
+    restart: unless-stopped
+    environment:
+      WORDPRESS_DB_HOST: mariadb:3306
+      WORDPRESS_DB_NAME: ${WP2_DB_NAME:-wordpress2}
+      WORDPRESS_DB_USER: ${WP2_DB_USER:-wp2user}
+      WORDPRESS_DB_PASSWORD: ${WP2_DB_PASSWORD}
+      WORDPRESS_TABLE_PREFIX: ${WP2_TABLE_PREFIX:-wp2_}
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_MEMORY_LIMIT', '256M');
+        define('WP_MAX_MEMORY_LIMIT', '512M');
+        define('DISABLE_WP_CRON', true);
+    volumes:
+      - wordpress2_data:/var/www/html
+      - ./php/php8.4.ini:/usr/local/etc/php/conf.d/custom.ini:ro
+    networks:
+      - frontend
+      - backend_wp2
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "php-fpm-healthcheck || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # ============================================
+  # MySQL Database - WordPress 1
+  # ============================================
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-wp1
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${WP1_DB_NAME:-wordpress1}
+      MYSQL_USER: ${WP1_DB_USER:-wp1user}
+      MYSQL_PASSWORD: ${WP1_DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
+      - ./backups/mysql:/backups
+    networks:
+      - backend_wp1
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ============================================
+  # MariaDB Database - WordPress 2
+  # ============================================
+  mariadb:
+    image: mariadb:11
+    container_name: mariadb-wp2
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${WP2_DB_NAME:-wordpress2}
+      MARIADB_USER: ${WP2_DB_USER:-wp2user}
+      MARIADB_PASSWORD: ${WP2_DB_PASSWORD}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./mariadb/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
+      - ./backups/mariadb:/backups
+    networks:
+      - backend_wp2
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ============================================
+  # PHPMyAdmin - MySQL
+  # ============================================
+  phpmyadmin1:
+    image: phpmyadmin:latest
+    container_name: phpmyadmin-mysql
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_ARBITRARY: 0
+      PMA_ABSOLUTE_URI: ${PMA1_URL:-http://localhost/pma1/}
+      UPLOAD_LIMIT: 100M
+    networks:
+      - frontend
+      - backend_wp1
+    depends_on:
+      - mysql
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # ============================================
+  # PHPMyAdmin - MariaDB
+  # ============================================
+  phpmyadmin2:
+    image: phpmyadmin:latest
+    container_name: phpmyadmin-mariadb
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mariadb
+      PMA_PORT: 3306
+      PMA_ARBITRARY: 0
+      PMA_ABSOLUTE_URI: ${PMA2_URL:-http://localhost/pma2/}
+      UPLOAD_LIMIT: 100M
+    networks:
+      - frontend
+      - backend_wp2
+    depends_on:
+      - mariadb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # ============================================
+  # SFTP Server - WordPress 1
+  # ============================================
+  sftp1:
+    image: atmoz/sftp:alpine
+    container_name: sftp-wp1
+    restart: unless-stopped
+    ports:
+      - "2221:22"
+    volumes:
+      - wordpress1_data:/home/wp1user/wordpress:rw
+      - ./sftp/wp1/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key:ro
+      - ./sftp/wp1/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key:ro
+    command: wp1user:${SFTP1_PASSWORD}:33:33:wordpress
+    networks:
+      - backend_wp1
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+
+  # ============================================
+  # SFTP Server - WordPress 2
+  # ============================================
+  sftp2:
+    image: atmoz/sftp:alpine
+    container_name: sftp-wp2
+    restart: unless-stopped
+    ports:
+      - "2222:22"
+    volumes:
+      - wordpress2_data:/home/wp2user/wordpress:rw
+      - ./sftp/wp2/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key:ro
+      - ./sftp/wp2/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key:ro
+    command: wp2user:${SFTP2_PASSWORD}:33:33:wordpress
+    networks:
+      - backend_wp2
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+
+# ============================================
+# NETWORKS
+# ============================================
+networks:
+  frontend:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+  backend_wp1:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+  backend_wp2:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.22.0.0/24
+
+# ============================================
+# VOLUMES
+# ============================================
+volumes:
+  wordpress1_data:
+    driver: local
+  wordpress2_data:
+    driver: local
+  mysql_data:
+    driver: local
+  mariadb_data:
+    driver: local
