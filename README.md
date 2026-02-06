@@ -212,6 +212,44 @@ docker stats                   # Resource usage
 - File permissions automatically set to 600 for secrets
 - Run `./scripts/security-check.sh` to verify security configuration
 
+## Troubleshooting
+
+### Regenerating Passwords
+
+If you need to regenerate passwords after containers are already running:
+```bash
+# 1. Remove old SSH keys
+rm -f sftp/wp1/ssh_host_* sftp/wp2/ssh_host_*
+
+# 2. Run setup to generate new passwords
+./setup.sh
+
+# 3. Stop all containers
+docker-compose down
+
+# 4. Remove WordPress volumes (contains old passwords)
+docker volume rm kymacloud_mysql_data kymacloud_mariadb_data kymacloud_wordpress1_data kymacloud_wordpress2_data
+
+# 5. Start fresh with new passwords
+docker-compose up -d
+
+# 6. Wait for containers to be healthy
+docker-compose ps
+```
+
+### Common Issues
+
+**Database connection errors:**
+- WordPress volumes may contain old passwords
+- Solution: Remove volumes and restart (see above)
+
+**SSH key generation hangs:**
+- Keys already exist and prompting to overwrite
+- Solution: Remove existing keys first: `rm -f sftp/*/ssh_host_*`
+
+**Containers showing unhealthy:**
+- Wait 1-2 minutes for databases to initialize
+- Check logs: `docker-compose logs [service-name]`
 
 ---
 
