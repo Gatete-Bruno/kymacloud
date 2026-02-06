@@ -1,5 +1,8 @@
 # KymaCloud WordPress Multi-Site Environment
 
+**[ Read Full Technical Documentation](https://gatete.hashnode.dev/kymacloud-wordpress-multi-site-environment-technical-documentation)**
+
+
 Production-ready Docker Compose setup for hosting multiple WordPress sites with different PHP versions, isolated databases, and comprehensive security.
 
 ## Project Structure
