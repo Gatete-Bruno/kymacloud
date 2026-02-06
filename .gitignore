@@ -1,0 +1,44 @@
+# Secrets and Sensitive Data
+.env
+.passwords
+*.key
+*.pem
+authorized_keys
+.htpasswd
+
+# SSH Keys
+sftp/*/ssh_host_*
+sftp/*/user_key*
+sftp/*/authorized_keys
+
+# Auth Files
+nginx/auth/.htpasswd
+
+# Backups (may contain sensitive data)
+backups/
+
+# Database Data
+mysql_data/
+mariadb_data/
+
+# Logs (may contain sensitive info)
+*.log
+logs/
+
+# SSL Certificates
+certbot/conf/*
+certbot/www/*
+!certbot/conf/.gitkeep
+!certbot/www/.gitkeep
+
+# OS Files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE Files
+.vscode/
+.idea/
+*.iml
