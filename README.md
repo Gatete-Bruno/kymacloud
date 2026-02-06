@@ -3,14 +3,103 @@
 Production-ready Docker Compose setup for hosting multiple WordPress sites with different PHP versions, isolated databases, and comprehensive security.
 
 ## System Design
-
+```mermaid
+graph TB
+    subgraph Internet["Internet"]
+        Users["👥 Users<br/>HTTP/HTTPS & SFTP"]
+    end
+    
+    subgraph Docker["KymaCloud WordPress Multi-Site Environment"]
+        subgraph Frontend["Frontend Network (172.20.0.0/24) - PUBLIC"]
+            NGINX["NGINX Reverse Proxy<br/>nginx:alpine<br/>Port 80/443<br/>Load Balancer"]
+            PMA1["PHPMyAdmin<br/>pma1.local<br/>MySQL Admin"]
+            PMA2["PHPMyAdmin<br/>pma2.local<br/>MariaDB Admin"]
+        end
+        
+        subgraph Backend1["Backend Network WP1 (172.21.0.0/24) - INTERNAL ONLY"]
+            WP1["WordPress 1<br/>site1.local<br/>PHP 8.1 FPM"]
+            MySQL["MySQL 8.0<br/>Port 3306"]
+            SFTP1["SFTP Server<br/>Port 2221"]
+            Vol1["📦 wordpress1_data<br/>📦 mysql_data"]
+        end
+        
+        subgraph Features["Key Features & Architecture"]
+            Scale["⚡ Horizontal Scaling<br/>FPM Stateless<br/>--scale wordpressN=5"]
+            Sec["🔒 Security<br/>3 Isolated Networks<br/>Internal-Only DBs"]
+            Monitor["📊 Monitoring<br/>Health Checks<br/>Auto-Restart"]
+        end
+        
+        subgraph Backend2["Backend Network WP2 (172.22.0.0/24) - INTERNAL ONLY"]
+            WP2["WordPress 2<br/>site2.local<br/>PHP 8.4 FPM"]
+            MariaDB["MariaDB 11<br/>Port 3306"]
+            SFTP2["SFTP Server<br/>Port 2222"]
+            Vol2["📦 wordpress2_data<br/>📦 mariadb_data"]
+        end
+    end
+    
+    Users -->|HTTP :80/443| NGINX
+    Users -->|SFTP :2221| SFTP1
+    Users -->|SFTP :2222| SFTP2
+    
+    NGINX -->|FastCGI :9000| WP1
+    NGINX -->|FastCGI :9000| WP2
+    NGINX -->|Proxy| PMA1
+    NGINX -->|Proxy| PMA2
+    
+    WP1 -->|SQL :3306| MySQL
+    WP2 -->|SQL :3306| MariaDB
+    
+    PMA1 -.->|Manage| MySQL
+    PMA2 -.->|Manage| MariaDB
+    
+    SFTP1 -.->|Files| Vol1
+    SFTP2 -.->|Files| Vol2
+    
+    WP1 -->|Store| Vol1
+    WP2 -->|Store| Vol2
+    MySQL -->|Persist| Vol1
+    MariaDB -->|Persist| Vol2
+    
+    WP1 -.->|Metrics| Scale
+    WP2 -.->|Metrics| Scale
+    
+    WP1 -.->|Monitor| Monitor
+    WP2 -.->|Monitor| Monitor
+    
+    NGINX -.->|Apply| Sec
+    
+    style Internet fill:#e8f1f5,color:#1a3a52,stroke:#2d7a8a,stroke-width:2px
+    style Users fill:#1a3a52,color:#fff,stroke:#0d1f2d,stroke-width:2px
+    
+    style Docker fill:#e8f1f5,color:#1a3a52,stroke:#2d7a8a,stroke-width:3px
+    
+    style Frontend fill:#2d7a8a,color:#fff,stroke:#1a3a52,stroke-width:2px
+    style NGINX fill:#2d7a8a,color:#fff,stroke:#1a3a52,stroke-width:2px
+    style PMA1 fill:#2d7a8a,color:#fff,stroke:#1a3a52,stroke-width:2px
+    style PMA2 fill:#2d7a8a,color:#fff,stroke:#1a3a52,stroke-width:2px
+    
+    style Backend1 fill:#e8f1f5,color:#1a3a52,stroke:#2d7a8a,stroke-width:2px
+    style Backend2 fill:#e8f1f5,color:#1a3a52,stroke:#2d7a8a,stroke-width:2px
+    
+    style WP1 fill:#1a3a52,color:#fff,stroke:#0d1f2d,stroke-width:2px
+    style WP2 fill:#1a3a52,color:#fff,stroke:#0d1f2d,stroke-width:2px
+    style MySQL fill:#1a3a52,color:#fff,stroke:#0d1f2d,stroke-width:2px
+    style MariaDB fill:#1a3a52,color:#fff,stroke:#0d1f2d,stroke-width:2px
+    style SFTP1 fill:#1a3a52,color:#fff,stroke:#0d1f2d,stroke-width:2px
+    style SFTP2 fill:#1a3a52,color:#fff,stroke:#0d1f2d,stroke-width:2px
+    
+    style Vol1 fill:#e8f1f5,color:#1a3a52,stroke:#2d7a8a,stroke-width:2px
+    style Vol2 fill:#e8f1f5,color:#1a3a52,stroke:#2d7a8a,stroke-width:2px
+    
+    style Features fill:#e8f1f5,color:#1a3a52,stroke:#2d7a8a,stroke-width:2px
+    style Scale fill:#3d5a80,color:#fff,stroke:#1a3a52,stroke-width:2px
+    style Sec fill:#3d5a80,color:#fff,stroke:#1a3a52,stroke-width:2px
+    style Monitor fill:#3d5a80,color:#fff,stroke:#1a3a52,stroke-width:2px
+    
+    linkStyle default stroke:#1a3a52,stroke-width:2px
+```
 
 ## Summary
-
-## System Design
-
-![Architecture Diagram](https://mermaid.ink/img/pako:eNqtV91y4jYUfhWNM9NpZ4BYMgTH0-4MJMuGaWDdkO32h05HwSJ4YixWFrthQ16gd_256k2nF-2D9Qn6CD2SbGMw2e1uDDMg-Zzz6eicTx_izprwgFmedS3oYoYuu-MYwStZXpkH_VgyETP5_djKhmPrB-OkXi8SJhIw_vvHz3-ZyedX4vDJ2eWlf6g-RugTNOpd-nkQiwMz2FnolE9umACkL1dzehLxZYBechH4giUJGiwjGdZHoWToafw6FDyes3g7kRyoB1YJqwBUNkRDJt9wcYM-xW3SIHYD3oek-RmqI_9F97x_soWkXsNn_eE3gKC_0QV7DRtjyBf8dqX3F1-H8a1Ho0UYM_3A50Ii1z5sNh09P-c0QF0a0XjCRAneH3QwoPtn_mDVCeZhrGMWc4obEZ_QSE8Hq9FX50ib9wGQvQCkCEBFSE-7eyDyJmwasVXDLoVmxIHKMR3mJXzp47SMuFDG_vDy6cWwc46eD8-_LWULMYC0aSfW6SXQzuJ-YTPIbWDU8wclBF0LwDA1cRv2puiOYx-V_BXl1JrqG42YgP5tIgghuBTxNY-w5vGvfyPYaLBQmeIfAyqpjtSG-Sp5FelnH1TOHqNyCXiK3WyVT-FodMRkBmWYqHl5E1AZBjH__P4nOuMifAtsppF-HMbXOiuoFRpJKlkE2eon9XqiwjZ7GH7RKiOzid7rb7-o4VKE0tDaQf2ERwCX99uAmqNPo_rzOFqh025SbhCPQ8mFqeBP2TRL84zRSM7QyYxNUsTOUvL6BUskFfJjqEn2UpOk1CQfQE2yRU2SU5OUqNncT01zyhQ50_OG8f9gJ3kHO8k-dpISO8kuO9X6wdU7-LkjvlqvUb3-ZK2kGnlGv9ZG_XZddLKeOjtrc7wedCDGgRSXMkKq3Ho0kSfP-sg7tm17rbThvR5k10ML8VrL6MOmrfWVbOkkQT481ZS10ZTMSkpW08wihloO1RvgN6AxvWZbEGrBHWMZQdfNePVCOLJrLTsbG9m17d8DnCxWDM3Tzw1pnJFLXRboUpjIYlRG111zeU29KyZFOIGstCoV1n3IuBtvFGGdScMuwl7zVnOVW2exiKC7IFpblwi5AsXL7idoGkaRd8DcKZ62ahMeceEdYOrQFqklUvAb5h2QoE1dmk7rb8JAzjyyuC3CGWIbrDQ6xZpOpzmQHeApCR4AKsKZ-83H5ubsg8yvNwY0jduT5NYC-3dralwBkD4k1eCQx-EU0bILTUXcyH6EHg1XBFVH5VF0y2BIFTBGOqoASmWmAigjnxUBkerOttLUipil9LdSVuWXzWry0wKfYjlBi7r2R55vkPAqYNKfi8dBmU-4VN-MNGjAphT-caL3BFs1-NccBpYnxZLVrDkTc6qm1p0CHFtyxuZwq_dgGFBxM7bG8T3ELGj8HefzLEzw5fXM8qY0SmC2XMDtjZ2GFG67GxfQGiZO-DKWloePmhrD8u6sW8sjTdxw2tg9co-aLee4dUxq1gq8Wm7Dsd2W07aP7XaL3Oest3pRu9F2MW4R7GDXJe32Mb7_D-Ol8gc?type=png)
-
 
 This Docker Compose setup provides a complete multi-site WordPress hosting environment with:
 
@@ -85,4 +174,4 @@ docker stats                   # Resource usage
 ---
 
 **Version**: 1.0.0  
-**Created for**: KymaCloud Technical Interview# kymacloud
+**Created for**: KymaCloud Technical Interview
