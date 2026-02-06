@@ -2,6 +2,53 @@
 
 Production-ready Docker Compose setup for hosting multiple WordPress sites with different PHP versions, isolated databases, and comprehensive security.
 
+## Project Structure
+```
+.
+├── docker-compose.yml          # Main orchestration file
+├── .env.example                # Environment variables template
+├── .gitignore                  # Git exclusions
+├── setup.sh                    # Initial setup and password generation
+├── Makefile                    # Management commands
+├── README.md                   
+├── QUICKSTART.md               # Quick setup guide
+├── nginx/
+│   ├── nginx.conf             # Main NGINX configuration
+│   └── conf.d/
+│       ├── site1.conf         # WordPress 1 virtual host
+│       ├── site2.conf         # WordPress 2 virtual host
+│       └── phpmyadmin.conf    # PHPMyAdmin proxy configuration
+├── php/
+│   ├── php8.1.ini             # PHP 8.1 settings (OPcache, limits)
+│   └── php8.4.ini             # PHP 8.4 settings (OPcache + JIT)
+├── mysql/
+│   └── my.cnf                 # MySQL 8.0 configuration
+├── mariadb/
+│   └── my.cnf                 # MariaDB 11 configuration
+├── sftp/
+│   ├── wp1/
+│   │   ├── ssh_host_ed25519_key
+│   │   ├── ssh_host_ed25519_key.pub
+│   │   ├── ssh_host_rsa_key
+│   │   └── ssh_host_rsa_key.pub
+│   └── wp2/
+│       ├── ssh_host_ed25519_key
+│       ├── ssh_host_ed25519_key.pub
+│       ├── ssh_host_rsa_key
+│       └── ssh_host_rsa_key.pub
+├── scripts/
+│   └── security-check.sh      # Security validation script
+├── backups/                   # Backup storage (gitignored)
+│   ├── mysql/
+│   ├── mariadb/
+│   ├── wordpress1/
+│   └── wordpress2/
+└── certbot/                   # SSL certificates (gitignored)
+    ├── conf/
+    └── www/
+```
+
+
 ## System Design
 ```mermaid
 graph TB
@@ -165,13 +212,6 @@ docker stats                   # Resource usage
 - File permissions automatically set to 600 for secrets
 - Run `./scripts/security-check.sh` to verify security configuration
 
-## Project Structure
 
-- docker-compose.yml - Main orchestration
-- .env.example - Environment variable template
-- nginx/ - NGINX configurations (main config + site1/site2/phpmyadmin)
-- php/ - PHP configurations (8.1 and 8.4)
-- mysql/ - MySQL configuration
-- mariadb/ - MariaDB configuration
-- sftp/ - SFTP SSH keys
-- backups/ - Backup storage
+---
+
